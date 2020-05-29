@@ -413,7 +413,7 @@ def train(args, data, models, discriminator, tokenizer):
 def evaluate_ner(args, model_ner, ner_dataset):
     model_ner.eval()
     if args.quick_evaluate_ratio < 1.0:
-        dataset_size = int(len(ner_dataset) * args.quick_evaluate_ratio)
+        dataset_size = min(len(ner_dataset), int(10000 * args.quick_evaluate_ratio))
         ner_dataset = Subset(ner_dataset, random.sample(range(len(ner_dataset)), dataset_size))
     logger.info("***** Running evaluation on {} examples *****".format(len(ner_dataset)))
     dataloader = DataLoader(ner_dataset, shuffle=False, batch_size=args.per_gpu_eval_batch_size)
