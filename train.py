@@ -364,18 +364,18 @@ def train(args, data, models, discriminator, tokenizer):
                 logging_numbers = [0.0, 0.0, 0.0, 0.0, 0.0]
             
             if args.quick_evaluate_steps > 0 and global_step % args.quick_evaluate_steps == 0:
-                p,r,f = evaluate_ner(args, model_ner, dev_dataset_src)
+                _,p,r,f = evaluate_ner(args, model_ner, dev_dataset_src)
                 logging.info("P/R/F1 on {} dev set: {}, {}, {}".format(args.src, p,r,f))
                 tb_writer.add_scalar("Precision_{}_dev".format(args.src), p, global_step)
-                tb_writer.add_scalar("Recall_{}_dev".format(args.src), p, global_step)
-                tb_writer.add_scalar("F1_{}_dev".format(args.src), p, global_step)
+                tb_writer.add_scalar("Recall_{}_dev".format(args.src), r, global_step)
+                tb_writer.add_scalar("F1_{}_dev".format(args.src), f, global_step)
 
                 if dev_dataset_tgt:
-                    p,r,f = evaluate_ner(args, model_ner, dev_dataset_tgt)
+                    _,p,r,f = evaluate_ner(args, model_ner, dev_dataset_tgt)
                     logging.info("P/R/F1 on {} dev set: {}, {}, {}".format(args.tgt, p,r,f))
                     tb_writer.add_scalar("Precision_{}_dev".format(args.tgt), p, global_step)
-                    tb_writer.add_scalar("Recall_{}_dev".format(args.tgt), p, global_step)
-                    tb_writer.add_scalar("F1_{}_dev".format(args.tgt), p, global_step)
+                    tb_writer.add_scalar("Recall_{}_dev".format(args.tgt), r, global_step)
+                    tb_writer.add_scalar("F1_{}_dev".format(args.tgt), f, global_step)
             if args.save_steps > 0 and global_step % args.save_steps == 0:
                 checkpoint_prefix = 'checkpoint'
                 # Save model checkpoint
@@ -442,3 +442,4 @@ def evaluate_ner(args, model_ner, ner_dataset):
     
 
 
+            

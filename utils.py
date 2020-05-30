@@ -3,7 +3,7 @@ import os
 import pickle
 import shutil
 import unicodedata
-from seqeval.metrics import precision_score, recall_score, f1_score
+from seqeval.metrics import precision_score, recall_score, f1_score, accuracy_score
 
 def get_lexicon_matching(args, tokenizer):
     cache_path = os.path.join(args.cache_dir,'lexicon_cache', '{}-{}.bin'.format(args.src, args.tgt))
@@ -57,6 +57,7 @@ def lowercase_and_remove_accent(text):
 
 
 def score_predictions(preds, labels):
-    return (precision_score(labels, preds), 
+    return (accuracy_score(labels, preds),
+        precision_score(labels, preds), 
         recall_score(labels, preds),
         f1_score(labels, preds))

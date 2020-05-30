@@ -170,12 +170,12 @@ class PANX_corpus():
                     labels.append(tag2id['UNDEFINED'])
 
                     assert(len(iids) == len(labels))
-                    if len(iids) > 512:
+                    if len(iids) > 128:
                         seq_tokens = []
                         seq_tags = []
                         continue
                         
-                    pad_length = 512 - len(iids)
+                    pad_length = 128 - len(iids)
                     iids.extend([tokenizer.pad_token_id] * pad_length)
                     attns.extend([0] * pad_length)
                     labels.extend([tag2id['UNDEFINED']] * pad_length)
