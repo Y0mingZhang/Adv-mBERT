@@ -209,7 +209,8 @@ def train(args, data, models, discriminator, tokenizer):
             len(train_dataset_mlm) // args.gradient_accumulation_steps) + 1
     else:
         t_total = len(
-            train_dataset_mlm) // args.gradient_accumulation_steps * args.num_train_epochs
+            train_dataset_mlm) // args.train_batch_size // args.gradient_accumulation_steps * \
+             args.num_train_epochs
 
 
     optimizer_mlm = AdamW(model_mlm.parameters(),
@@ -245,18 +246,17 @@ def train(args, data, models, discriminator, tokenizer):
 
     global_step = 0
     tr_loss = 0.0
+
+    d_acc_last_batch = 0.5
     
     train_iterator = tqdm(range(int(args.num_train_epochs)),
                             desc="Epoch")
     set_seed(args)  # Added here for reproducibility (even between python 2 and 3)
     for epoch in train_iterator:
-        
-
-        epoch_iterator = tqdm(range(args.num_train_epochs), desc="Iteration")
 
         logging.info("   Begin Epoch {}   ".format(epoch))
         logging_numbers = [0.0, 0.0, 0.0, 0.0, 0.0]
-        for step, (batch_mlm, batch_ner) in enumerate(zip(train_dataloader_mlm, train_dataloader_ner)):
+        for step, (batch_mlm, batch_ner) in tqdm(enumerate(zip(train_dataloader_mlm, train_dataloader_ner))):
             """ ner stuff """
             model_ner.train()
             optimizer_ner.zero_grad()
@@ -289,8 +289,12 @@ def train(args, data, models, discriminator, tokenizer):
             mask = mask.to(args.device)
             langs = langs.to(args.device)
             
-
+            # Label smoothing
+            langs[langs==1] = 1 - args.smoothing
+            langs[langs==0] = 0 + args.smoothing
             d_labels = langs.clone()
+            
+
             g_labels = 1 - langs.clone()
             
             if args.replace_word_translation:
@@ -303,11 +307,10 @@ def train(args, data, models, discriminator, tokenizer):
             
 
             # Train D
-            
             discriminator.zero_grad()
 
             d_input = last_layer.detach()
-            d_labels = d_labels.squeeze()
+            d_labels = d_labels.view(-1)
             mask = mask.to(torch.float)
             d_loss, d_output = discriminator(inputs_embeds=d_input, attention_mask=mask,
              labels=d_labels)
@@ -421,7 +424,7 @@ def evaluate_ner(args, model_ner, ner_dataset):
     all_preds = []
     all_labels = []
     with torch.no_grad():
-        for batch in tqdm(dataloader, desc="eval"):
+        for batch in dataloader:
             batch = [t.to(args.device) for t in batch]
             tokens, mask, labels = batch
             loss, scores = model_ner(input_ids=tokens, attention_mask=mask, labels=labels)[0:2]

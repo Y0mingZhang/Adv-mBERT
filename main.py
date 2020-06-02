@@ -110,9 +110,14 @@ def main():
     parser.add_argument("--alpha", type=float, default=1.0)
     parser.add_argument("--ner_dir", type=str, required=True)
     parser.add_argument("--tb_postfix", type=str, default="")
+    parser.add_argument("--smoothing", type=float, default=0.0)
+
 
 
     args = parser.parse_args()
+
+    if args.smoothing < 0 or args.smoothing > 0.5:
+        raise ValueError("Label smoothing must be between 0 and 0.5")
 
     device = torch.device("cuda" if torch.cuda.is_available()
                             and not args.no_cuda else "cpu")
