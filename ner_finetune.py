@@ -40,6 +40,11 @@ def main():
         required=True
     )
     parser.add_argument(
+        "--tokenizer_name",
+        type=str,
+        default="bert-base-multilingual-cased"
+    )
+    parser.add_argument(
         "--sequence_length", default=128, type=int, help="Sequence length for language model."
     )
     parser.add_argument(
@@ -88,7 +93,7 @@ def main():
 
     args.device = device
    
-    tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path,
+    tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_name,
                                  cache_dir=args.cache_dir, use_fast=True)
     model_ner = AutoModelForTokenClassification.from_pretrained(args.model_name_or_path, 
                                         cache_dir=args.cache_dir)
