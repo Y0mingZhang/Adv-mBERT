@@ -1,7 +1,6 @@
 import argparse
 import logging
 import torch
-
 import os
 
 
@@ -106,12 +105,13 @@ def main():
     )
     parser.add_argument("--replace_word_translation", action="store_false")
     parser.add_argument("--replace_word_translation_ner", action="store_true")
-    parser.add_argument('--translation_replacement_probability', type=float, default=0.25, help="probability of replacing a word with its translation")
+    parser.add_argument('--translation_replacement_probability', type=float, default=0.5, help="probability of replacing a word with its translation")
     parser.add_argument("--alpha", type=float, default=1.0)
     parser.add_argument("--ner_dir", type=str, required=True)
     parser.add_argument("--tb_postfix", type=str, default="")
     parser.add_argument("--smoothing", type=float, default=0.0)
-
+    parser.add_argument("--do_word_translation_retrieval", action="store_true")
+    parser.add_argument("--d_update_steps", type=int, default=1)
 
 
     args = parser.parse_args()
@@ -164,7 +164,7 @@ def main():
     model_ner.to(args.device)
 
     bc = BertConfig(hidden_size=model_mlm.config.hidden_size, num_hidden_layers=6, num_attention_heads=6,intermediate_size=768)
-    bc.num_labels = 2
+    bc.num_labels = 1
     discriminator = AutoModelForSequenceClassification.from_config(bc)
 
     discriminator.to(args.device)

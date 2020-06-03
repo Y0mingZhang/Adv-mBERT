@@ -5,7 +5,7 @@ script="""#!/bin/bash
 #SBATCH --mem-per-cpu=2G
 #SBATCH --partition=gpu
 #SBATCH --gpus=v100:1
-#SBATCH --time=0-04:00:00
+#SBATCH --time=0-10:00:00
 #SBATCH --account=mihalcea1
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --mail-user=yimingz@umich.edu
@@ -25,22 +25,24 @@ python3 /scratch/mihalcea_root/mihalcea1/yimingz/src/Adv-mBERT/main.py \
 --src en \
 --tgt $TGT \
 --model_name_or_path bert-base-multilingual-cased \
---num_train_epochs 2 \
---logging_steps 100 \
+--num_train_epochs 10 \
+--logging_steps 50 \
 --ner-lr 2e-5 \
 --g-lr 2e-5 \
---d-lr 1e-4 \
---quick_evaluate_steps 500 \
+--d-lr 5e-5 \
+--quick_evaluate_steps 250 \
 --quick_evaluate_ratio 0.1 \
 --cache_dir /scratch/mihalcea_root/mihalcea1/yimingz/data/cache_dir \
---output_dir /scratch/mihalcea_root/mihalcea1/yimingz/data/training_output/adv-mbert/smoothing+independent_lr \
+--output_dir /scratch/mihalcea_root/mihalcea1/yimingz/data/training_output/adv-mbert/balanced-gan \
 --train_data_file /scratch/mihalcea_root/mihalcea1/yimingz/WIKI_DATA/en/en.10000 /scratch/mihalcea_root/mihalcea1/yimingz/WIKI_DATA/$TGT/$TGT.10000 \
 --lexicon_path /scratch/mihalcea_root/mihalcea1/yimingz/data/lexicon/en-$TGT.txt \
 --ner_dir /scratch/mihalcea_root/mihalcea1/yimingz/data/panx_dataset \
 --replace_word_translation_ner \
 --save_steps 500 \
 --smoothing 0.2 \
---alpha 0.25
+--alpha 0.5 \
+--do_word_translation_retrieval \
+--d_update_steps 5
 """
 import sys
 print(script.format(sys.argv[1]))

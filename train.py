@@ -42,19 +42,25 @@ logger = logging.getLogger(__name__)
 
 
 
-def replace_word_translation(args, tokens, tokenizer, matching, langs):
+def replace_word_translation(args, tokens, tokenizer, matching):
 
     pad_id = tokenizer.pad_token_id
     for i in range(tokens.shape[0]):
-        lang_id = int(langs[i][0])
         for j in range(tokens.shape[1]):
-            
             int_token_id = int(tokens[i][j])
             if int_token_id == pad_id: break
-            if int_token_id in matching[lang_id] and random.random() < args.translation_replacement_probability:
-                tokens[i][j] = matching[lang_id][int_token_id]
+            if int_token_id in matching and random.random() < args.translation_replacement_probability:
+                tokens[i][j] = random.choice(matching[int_token_id])
 
+def replace_word_translation_labels(args, tokens, labels, tokenizer, matching):
 
+    pad_id = tokenizer.pad_token_id
+    for i in range(tokens.shape[0]):
+        for j in range(tokens.shape[1]):
+            int_token_id = int(tokens[i][j])
+            if int_token_id == pad_id: break
+            if int_token_id in matching and random.random() < args.translation_replacement_probability:
+                labels[i][j] = random.choice(matching[int_token_id])
         
 
 def load_and_cache_examples(args, tokenizer, evaluate=False):
@@ -264,7 +270,7 @@ def train(args, data, models, discriminator, tokenizer):
             tokens, mask, labels = batch_ner
             
             if args.replace_word_translation_ner:
-                replace_word_translation(args, tokens, tokenizer, matching, [[0] for _ in range(tokens.shape[0])])
+                replace_word_translation(args, tokens, tokenizer, matching)
             
             loss = model_ner(input_ids=tokens, attention_mask=mask, labels=labels)[0]
             loss.backward()
@@ -283,22 +289,29 @@ def train(args, data, models, discriminator, tokenizer):
                 _mask_tokens = mask_tokens_legacy
                 inputs, labels = _mask_tokens(
                     tokens, mask, tokenizer, args)
+
+            if args.replace_word_translation:
+                replace_word_translation(args, inputs, tokenizer, matching)
+
+            if args.do_word_translation_retrieval:
+                replace_word_translation_labels(args, inputs, labels, tokenizer, matching)
             tokens = tokens.to(args.device)
             inputs = inputs.to(args.device)
             labels = labels.to(args.device)
             mask = mask.to(args.device)
-            langs = langs.to(args.device)
+            
+            
             
             # Label smoothing
-            langs[langs==1] = 1 - args.smoothing
-            langs[langs==0] = 0 + args.smoothing
-            d_labels = langs.clone()
+            langs = langs.to(args.device).view(-1)
+            langs_smoothed = langs.float().clone()
+            langs_smoothed[langs_smoothed==1.0] = 1.0 - args.smoothing
+            langs_smoothed[langs_smoothed==0.0] = args.smoothing
+            d_labels = langs_smoothed.clone()
             
 
-            g_labels = 1 - langs.clone()
+            g_labels = 1 - langs_smoothed.clone()
             
-            if args.replace_word_translation:
-                replace_word_translation(args, inputs, tokenizer, matching, langs)
 
             outputs = model_mlm(inputs, attention_mask=mask, masked_lm_labels=labels)
             # Get masked-lm loss & last hidden state
@@ -307,27 +320,27 @@ def train(args, data, models, discriminator, tokenizer):
             
 
             # Train D
-            discriminator.zero_grad()
-
-            d_input = last_layer.detach()
-            d_labels = d_labels.view(-1)
-            mask = mask.to(torch.float)
-            d_loss, d_output = discriminator(inputs_embeds=d_input, attention_mask=mask,
-             labels=d_labels)
-            
-            if args.n_gpu > 1:
-                d_loss = d_loss.mean()
-
-            d_loss.backward()
-            d_optimizer.step()
+            if global_step % args.d_update_steps == 0:
+                discriminator.zero_grad()
+                d_input = last_layer.detach()
+                mask = mask.to(torch.float)
+                d_output = discriminator(inputs_embeds=d_input, attention_mask=mask,
+                labels=None)[0].view(-1)          
+                d_loss = F.binary_cross_entropy_with_logits(d_output, d_labels)       
+                if args.n_gpu > 1:
+                    d_loss = d_loss.mean()
+                d_loss.backward()
+                d_optimizer.step()
 
             # Train G
             model_mlm.zero_grad()
-            g_labels = g_labels.squeeze()
 
             # Update generator w/ fake labels
-            g_loss, d_output = discriminator(inputs_embeds=last_layer, attention_mask=mask,
-             labels=g_labels)
+            d_output = discriminator(inputs_embeds=last_layer, attention_mask=mask,
+             labels=None)[0].view(-1)
+            
+
+            g_loss = F.binary_cross_entropy_with_logits(d_output, g_labels)
             
             if args.n_gpu > 1:
                 lm_loss = lm_loss.mean()
@@ -339,8 +352,8 @@ def train(args, data, models, discriminator, tokenizer):
 
             global_step += 1
 
-            d_preds = d_output.argmax(dim=1)
-            d_acc = int((d_preds == d_labels).sum()) / (d_labels.shape[0])
+            d_preds = (d_output > 0).to(torch.long)
+            d_acc = int((d_preds == langs).sum()) / (langs.shape[0])
             logging_numbers[0] += lm_loss.item()
             logging_numbers[1] += g_loss.item()
             logging_numbers[2] += d_loss.item()
@@ -397,7 +410,6 @@ def train(args, data, models, discriminator, tokenizer):
                 _rotate_checkpoints(args, checkpoint_prefix)
 
             if args.max_steps > 0 and global_step > args.max_steps:
-                epoch_iterator.close()
                 break
 
         

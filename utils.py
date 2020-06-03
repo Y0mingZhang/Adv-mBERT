@@ -4,6 +4,8 @@ import pickle
 import shutil
 import unicodedata
 from seqeval.metrics import precision_score, recall_score, f1_score, accuracy_score
+from nltk.corpus import stopwords
+from collections import defaultdict as dd
 
 def get_lexicon_matching(args, tokenizer):
     cache_path = os.path.join(args.cache_dir,'lexicon_cache', '{}-{}.bin'.format(args.src, args.tgt))
@@ -14,29 +16,27 @@ def get_lexicon_matching(args, tokenizer):
     if not os.path.isdir(os.path.join(args.cache_dir,'lexicon_cache')):
         os.mkdir(os.path.join(args.cache_dir,'lexicon_cache'))
 
-    forward_matching, backward_matching = {}, {}
-
+    matching = dd(list)
+    sw = set(stopwords.words())
 
     with open(args.lexicon_path, 'r') as f:
         for line in tqdm(f):
             line = line.strip()
             word, word_trans = line.split('\t') if '\t' in line else line.split()
             if word == word_trans: continue
+            if word.lower() in sw or word_trans.lower() in sw: continue
             word_id = tokenizer.convert_tokens_to_ids(tokenizer.tokenize(word))
             word_trans_id = tokenizer.convert_tokens_to_ids(tokenizer.tokenize(word_trans))
 
-            if len(word_id) == 1 and len(word_trans_id) == 1:
-                word_id = word_id[0]
-                word_trans_id = word_trans_id[0]
+            if len(word_id) > 1 or len(word_trans_id) > 1: continue
+            word_id = word_id[0]
+            word_trans_id = word_trans_id[0]
                 
-                if word_id not in forward_matching:
-                    forward_matching[word_id] = word_trans_id
-                
-                if word_trans_id not in backward_matching:
-                    backward_matching[word_trans_id] = word_id
-    bidir = (forward_matching, backward_matching)    
-    pickle.dump(bidir, open(cache_path, 'wb'))
-    return bidir
+            matching[word_id].append(word_trans_id)
+            matching[word_trans_id].append(word_id)
+
+    pickle.dump(matching, open(cache_path, 'wb'))
+    return matching
 
 
 def lowercase_and_remove_accent(text):
