@@ -21,7 +21,6 @@ python3 /scratch/mihalcea_root/mihalcea1/yimingz/src/Adv-mBERT/ner_finetune.py \
 --tgt $TGT \
 --model_name_or_path /scratch/mihalcea_root/mihalcea1/yimingz/data/training_output/adv-mbert/balanced-gan/en-$TGT/checkpoint-5000 \
 --num_train_epochs 10 \
---logging_steps 50 \
 --ner-lr 2e-5 \
 --cache_dir /scratch/mihalcea_root/mihalcea1/yimingz/data/cache_dir \
 --output_dir - \
@@ -35,7 +34,6 @@ python3 /scratch/mihalcea_root/mihalcea1/yimingz/src/Adv-mBERT/ner_finetune.py \
 --tgt $TGT \
 --model_name_or_path /scratch/mihalcea_root/mihalcea1/yimingz/data/training_output/adv-mbert/balanced-gan/en-$TGT/checkpoint-10000 \
 --num_train_epochs 10 \
---logging_steps 50 \
 --ner-lr 2e-5 \
 --cache_dir /scratch/mihalcea_root/mihalcea1/yimingz/data/cache_dir \
 --output_dir - \
@@ -49,7 +47,6 @@ python3 /scratch/mihalcea_root/mihalcea1/yimingz/src/Adv-mBERT/ner_finetune.py \
 --tgt $TGT \
 --model_name_or_path /scratch/mihalcea_root/mihalcea1/yimingz/data/training_output/adv-mbert/balanced-gan/en-$TGT/checkpoint-20000 \
 --num_train_epochs 10 \
---logging_steps 50 \
 --ner-lr 2e-5 \
 --cache_dir /scratch/mihalcea_root/mihalcea1/yimingz/data/cache_dir \
 --output_dir - \
