@@ -132,7 +132,8 @@ def main():
         model_ner = torch.nn.DataParallel(model_ner)
 
     test_dataset = ner_corpus[args.tgt].datasets['test']
-    a,p,r,f = evaluate_ner(args, model_ner, test_dataset)
+    preds_path = os.path.join(args.output_dir)   
+    a,p,r,f = evaluate_ner(args, model_ner, test_dataset, preds_path)
 
     logging.info("A/P/R/F1 on {} test set: {} {},{}, {}".format(args.tgt,a,p,r,f))
     tb_writer.add_scalar("Accuracy_{}_test".format(args.tgt), a, 0)
@@ -213,7 +214,7 @@ def train(args, ner_corpus, model_ner, tb_writer):
 
 
 
-def evaluate_ner(args, model_ner, ner_dataset):
+def evaluate_ner(args, model_ner, ner_dataset, preds_path=None):
     model_ner.eval()
     logging.info("***** Running evaluation on {} examples *****".format(len(ner_dataset)))
     dataloader = DataLoader(ner_dataset, shuffle=False, batch_size=args.per_gpu_eval_batch_size)
@@ -236,7 +237,9 @@ def evaluate_ner(args, model_ner, ner_dataset):
                         labels_list.append(id2tag[int(label_seq[i])])
                 all_preds.append(preds_list)
                 all_labels.append(labels_list)
-    
+    if preds_path:
+        torch.save(preds_list, os.path.join(preds_path, "preds.pt"))
+        torch.save(labels_list, os.path.join(preds_path, "labels.pt"))
     return score_predictions(all_preds, all_labels)
 
 
