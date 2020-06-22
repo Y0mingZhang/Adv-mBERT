@@ -239,7 +239,7 @@ def evaluate_ner(args, model_ner, ner_dataset, preds_path=None):
                 all_labels.append(labels_list)
     if preds_path:
         torch.save(all_preds, os.path.join(preds_path, "preds.pt"))
-        torch.save(labels_list, os.path.join(preds_path, "labels.pt"))
+        torch.save(all_labels, os.path.join(preds_path, "labels.pt"))
     return score_predictions(all_preds, all_labels)
 
 
