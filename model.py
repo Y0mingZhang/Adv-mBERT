@@ -59,7 +59,7 @@ class MeanPoolingDiscriminator(nn.Module):
         lengths = attention_mask.sum(1).view(-1,1).repeat(1, sum_.shape[1])
 
         mean_pool = sum_ / lengths
-        return self.out(self.relu(self.linear(mean_pool)))
+        return self.out(self.relu(self.linear(mean_pool))).squeeze()
         
 # class BertEncoderWrapper(BertPreTrainedModel):
 #     def __init__(self, config, n_langs, pool=False):
