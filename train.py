@@ -187,7 +187,7 @@ def _rotate_checkpoints(args, checkpoint_prefix, use_mtime=False):
 
 
 def train(args, data, models, discriminator, tokenizer):
-
+    torch.autograd.set_detect_anomaly(True)
     model_mlm, model_ner = models
     train_dataset_mlm, ner_corpus = data
     train_dataset_ner = ner_corpus[args.src].datasets['train']
