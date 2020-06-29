@@ -1,7 +1,9 @@
 #!/bin/bash
 set -e
+for FILE in make_job*.py
 for LANG in he hr bg fa bs fi
 do
-python3 make_job.py $LANG > en-$LANG.sh
+python3 $FILE $LANG > $FILE-en-$LANG.sh
 #sbatch en-$LANG.sh
+done
 done

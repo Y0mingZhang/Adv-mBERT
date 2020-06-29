@@ -30,19 +30,31 @@ python3 /scratch/mihalcea_root/mihalcea1/yimingz/src/Adv-mBERT/main.py \
 --ner-lr 2e-5 \
 --g-lr 2e-5 \
 --d-lr 5e-5 \
---quick_evaluate_steps 250 \
+--quick_evaluate_steps 1000 \
 --quick_evaluate_ratio 0.1 \
 --cache_dir /scratch/mihalcea_root/mihalcea1/yimingz/data/cache_dir \
---output_dir /scratch/mihalcea_root/mihalcea1/yimingz/data/training_output/adv-mbert/balanced-gan \
+--output_dir /scratch/mihalcea_root/mihalcea1/yimingz/data/training_output/adv-mbert/no_trans \
 --train_data_file /scratch/mihalcea_root/mihalcea1/yimingz/WIKI_DATA/en/en.10000 /scratch/mihalcea_root/mihalcea1/yimingz/WIKI_DATA/$TGT/$TGT.10000 \
 --lexicon_path /scratch/mihalcea_root/mihalcea1/yimingz/data/lexicon/en-$TGT.txt \
 --ner_dir /scratch/mihalcea_root/mihalcea1/yimingz/data/panx_dataset \
---replace_word_translation_ner \
---save_steps 500 \
+--save_steps 1000 \
 --smoothing 0.2 \
 --alpha 0.5 \
---do_word_translation_retrieval \
---d_update_steps 5
+--d_update_steps 5 \
+--translation_replacement_probability 0.0
+
+python3 /scratch/mihalcea_root/mihalcea1/yimingz/src/Adv-mBERT/ner_finetune.py \
+--per_gpu_train_batch_size 8 \
+--src en \
+--tgt $TGT \
+--model_name_or_path /scratch/mihalcea_root/mihalcea1/yimingz/data/training_output/adv-mbert/mean_pool/en-$TGT/ \
+--num_train_epochs 10 \
+--ner-lr 2e-5 \
+--cache_dir /scratch/mihalcea_root/mihalcea1/yimingz/data/cache_dir \
+--output_dir - \
+--gradient_accumulation_steps 4 \
+--ner_dir /scratch/mihalcea_root/mihalcea1/yimingz/data/panx_dataset \
+--save_steps 125
 """
 import sys
 print(script.format(sys.argv[1]))
