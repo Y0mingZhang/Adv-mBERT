@@ -40,7 +40,7 @@ python3 /scratch/mihalcea_root/mihalcea1/yimingz/src/Adv-mBERT/main.py \
 --save_steps 1000 \
 --smoothing 0.2 \
 --alpha 0.5 \
---d_update_steps 5
+--d_update_steps 5 \
 --mean_pool
 
 python3 /scratch/mihalcea_root/mihalcea1/yimingz/src/Adv-mBERT/ner_finetune.py \
