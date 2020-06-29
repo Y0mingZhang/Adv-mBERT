@@ -44,6 +44,22 @@ class StackedTransformerEncoder(nn.Module):
         output = self.model(x, mask=mask)
         return self.activation(self.linear(output))
 
+class MeanPoolingDiscriminator(nn.Module):
+    def __init__(self):
+        self.linear = nn.Linear(768, 32)
+        self.relu = nn.PReLU()
+        self.out = nn.Linear(32, 1)
+    
+    def forward(self, inputs_embeds, attention_mask,
+             labels):
+        
+        inputs_embeds[attention_mask==0.0] = 0
+        sum_ = inputs_embeds.sum(1)
+        lengths = attention_mask.sum(1).view(-1,1).repeat(1, sum_.shape[1])
+
+        mean_pool = sum_ / lengths
+        return self.out(self.relu(self.linear(mean_pool)))
+        
 # class BertEncoderWrapper(BertPreTrainedModel):
 #     def __init__(self, config, n_langs, pool=False):
 #         super(BertEncoderWrapper, self).__init__(config)
