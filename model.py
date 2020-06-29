@@ -46,6 +46,7 @@ class StackedTransformerEncoder(nn.Module):
 
 class MeanPoolingDiscriminator(nn.Module):
     def __init__(self):
+        super(MeanPoolingDiscriminator, self).__init__()
         self.linear = nn.Linear(768, 32)
         self.relu = nn.PReLU()
         self.out = nn.Linear(32, 1)
