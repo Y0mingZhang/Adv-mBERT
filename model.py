@@ -53,7 +53,7 @@ class MeanPoolingDiscriminator(nn.Module):
     
     def forward(self, inputs_embeds, attention_mask,
              labels):
-        input_embeds = inputs_embeds.clone()
+        inputs_embeds = inputs_embeds.clone()
         inputs_embeds[attention_mask==0.0] = 0
         sum_ = inputs_embeds.sum(1)
         lengths = attention_mask.sum(1).view(-1,1).repeat(1, sum_.shape[1])
