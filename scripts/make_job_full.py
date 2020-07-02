@@ -48,7 +48,7 @@ python3 /scratch/mihalcea_root/mihalcea1/yimingz/src/Adv-mBERT/ner_finetune.py \
 --per_gpu_train_batch_size 8 \
 --src en \
 --tgt $TGT \
---model_name_or_path /scratch/mihalcea_root/mihalcea1/yimingz/data/training_output/adv-mbert/no_trans/en-$TGT/ \
+--model_name_or_path /scratch/mihalcea_root/mihalcea1/yimingz/data/training_output/adv-mbert/full/en-$TGT/ \
 --num_train_epochs 10 \
 --ner-lr 2e-5 \
 --cache_dir /scratch/mihalcea_root/mihalcea1/yimingz/data/cache_dir \
