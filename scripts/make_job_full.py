@@ -20,7 +20,7 @@ cat /scratch/mihalcea_root/mihalcea1/yimingz/WIKI_DATA/en/en.all | head -n10000 
 cat /scratch/mihalcea_root/mihalcea1/yimingz/WIKI_DATA/$TGT/$TGT.all | head -n10000 \
  > /scratch/mihalcea_root/mihalcea1/yimingz/WIKI_DATA/$TGT/$TGT.10000
 
-#python3 /scratch/mihalcea_root/mihalcea1/yimingz/src/Adv-mBERT/main.py \
+python3 /scratch/mihalcea_root/mihalcea1/yimingz/src/Adv-mBERT/main.py \
 --per_gpu_train_batch_size 8 \
 --src en \
 --tgt $TGT \
@@ -33,7 +33,7 @@ cat /scratch/mihalcea_root/mihalcea1/yimingz/WIKI_DATA/$TGT/$TGT.all | head -n10
 --quick_evaluate_steps 1000 \
 --quick_evaluate_ratio 0.1 \
 --cache_dir /scratch/mihalcea_root/mihalcea1/yimingz/data/cache_dir \
---output_dir /scratch/mihalcea_root/mihalcea1/yimingz/data/training_output/adv-mbert/no_trans \
+--output_dir /scratch/mihalcea_root/mihalcea1/yimingz/data/training_output/adv-mbert/full \
 --train_data_file /scratch/mihalcea_root/mihalcea1/yimingz/WIKI_DATA/en/en.10000 /scratch/mihalcea_root/mihalcea1/yimingz/WIKI_DATA/$TGT/$TGT.10000 \
 --lexicon_path /scratch/mihalcea_root/mihalcea1/yimingz/data/lexicon/en-$TGT.txt \
 --ner_dir /scratch/mihalcea_root/mihalcea1/yimingz/data/panx_dataset \
@@ -41,7 +41,8 @@ cat /scratch/mihalcea_root/mihalcea1/yimingz/WIKI_DATA/$TGT/$TGT.all | head -n10
 --smoothing 0.2 \
 --alpha 0.5 \
 --d_update_steps 5 \
---translation_replacement_probability 0.0
+--translation_replacement_probability 0.5 \
+--do_word_translation_retrieval
 
 python3 /scratch/mihalcea_root/mihalcea1/yimingz/src/Adv-mBERT/ner_finetune.py \
 --per_gpu_train_batch_size 8 \
