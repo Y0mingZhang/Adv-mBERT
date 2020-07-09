@@ -114,10 +114,10 @@ def main():
     parser.add_argument("--d_update_steps", type=int, default=1)
     parser.add_argument("--token_discriminator", action="store_true")
     parser.add_argument("--sentence_discriminator", action="store_true")
-    parser.add_argument("--td_lr", type=float, default=2e-4)
-    parser.add_argument("--sd_lr", type=float, default=5e-5)
-    parser.add_argument("--td_weight", type=float, default=2e-4)
-    parser.add_argument("--sd_weight", type=float, default=5e-5)
+    parser.add_argument("--td_lr", type=float, default=5e-5)
+    parser.add_argument("--sd_lr", type=float, default=2e-4)
+    parser.add_argument("--td_weight", type=float, default=1.0)
+    parser.add_argument("--sd_weight", type=float, default=1.0)
 
     args = parser.parse_args()
 

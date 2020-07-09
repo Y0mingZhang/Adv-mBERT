@@ -187,7 +187,6 @@ def _rotate_checkpoints(args, checkpoint_prefix, use_mtime=False):
 
 
 def train(args, data, models, sd, td, tokenizer):
-    torch.autograd.set_detect_anomaly(True)
     model_mlm, model_ner = models
     train_dataset_mlm, ner_corpus = data
     train_dataset_ner = ner_corpus[args.src].datasets['train']
@@ -265,7 +264,22 @@ def train(args, data, models, sd, td, tokenizer):
     for epoch in train_iterator:
 
         logging.info("   Begin Epoch {}   ".format(epoch))
-        logging_numbers = [0.0, 0.0, 0.0, 0.0, 0.0]
+        logging_numbers = {
+            'ner_loss' : 0.0,
+            'lm_loss' : 0.0,
+            'cumulative_generator_loss' : 0.0
+        }
+        if sd:
+            logging_numbers.update(
+            {'sentence_discriminator_d_loss' : 0.0,
+            'sentence_discriminator_g_loss' : 0.0,
+            'sentence_discriminator_acc' : 0.0})
+        if td:
+            logging_numbers.update(
+            {'token_discriminator_d_loss' : 0.0,
+            'token_discriminator_g_loss' : 0.0,
+            'token_discriminator_acc' : 0.0})
+
         for step, (batch_mlm, batch_ner) in tqdm(enumerate(zip(train_dataloader_mlm, train_dataloader_ner))):
             """ ner stuff """
             model_ner.train()
@@ -279,7 +293,7 @@ def train(args, data, models, sd, td, tokenizer):
             loss = model_ner(input_ids=tokens, attention_mask=mask, labels=labels)[0]
             loss.backward()
             optimizer_ner.step()
-            logging_numbers[4] += loss.item()
+            logging_numbers['ner_loss'] += loss.item()
 
             """ mlm stuff """
             model_mlm.train()
@@ -327,7 +341,8 @@ def train(args, data, models, sd, td, tokenizer):
 
             if args.n_gpu > 1:
                 lm_loss = lm_loss.mean()
-            lm_loss.backward()
+            g_loss = lm_loss
+            logging_numbers['lm_loss'] += lm_loss.item()
             
 
             # Train D
@@ -343,18 +358,25 @@ def train(args, data, models, sd, td, tokenizer):
                         labels=None)[0].view(-1)
                     td_loss = F.binary_cross_entropy_with_logits(td_output, d_labels)       
                     if args.n_gpu > 1:
-                        td_loss = d_loss.mean()
+                        td_loss = td_loss.mean()
                     td_loss.backward()
                     td_optimizer.step()
+                    logging_numbers['token_discriminator_d_loss'] += td_loss.item()
+                    td_preds = (td_output > 0).to(torch.long)
+                    td_acc = int((td_preds == langs).sum()) / (langs.shape[0])
+                    logging_numbers['token_discriminator_acc'] += td_loss.item()
                 if sd:
                     sd_output = sd(inputs_embeds=d_input, attention_mask=mask,
                         labels=None)[0].view(-1)
                     sd_loss = F.binary_cross_entropy_with_logits(sd_output, d_labels)       
                     if args.n_gpu > 1:
-                        sd_loss = d_loss.mean()
+                        sd_loss = sd_loss.mean()
                     sd_loss.backward()
-                    sd_optimizer.step() 
-
+                    sd_optimizer.step()
+                    logging_numbers['sentence_discriminator_d_loss'] += sd_loss.item()
+                    sd_preds = (sd_output > 0).to(torch.long)
+                    sd_acc = int((sd_preds == langs).sum()) / (langs.shape[0])
+                    logging_numbers['sentence_discriminator_acc'] += sd_loss.item()
             # Train G
 
             # Update generator w/ fake labels
@@ -365,8 +387,10 @@ def train(args, data, models, sd, td, tokenizer):
                 td_g_loss = F.binary_cross_entropy_with_logits(td_output, g_labels)
             
                 if args.n_gpu > 1:
-                    td_g_loss = g_loss.mean()
-                td_g_loss.backward()
+                    td_g_loss = td_g_loss.mean()
+                g_loss += td_g_loss * args.td_weight
+                logging_numbers['token_discriminator_g_loss'] += td_loss.item()
+
 
             if sd:
                 sd_output = sd(inputs_embeds=last_layer, attention_mask=mask,
@@ -375,39 +399,24 @@ def train(args, data, models, sd, td, tokenizer):
                 sd_g_loss = F.binary_cross_entropy_with_logits(sd_output, g_labels)
             
                 if args.n_gpu > 1:
-                    sd_g_loss = g_loss.mean()
-                sd_g_loss.backward()
+                    sd_g_loss = sd_g_loss.mean()
+                g_loss += sd_g_loss * args.sd_weight
+                logging_numbers['sentence_discriminator_g_loss'] += sd_loss.item()
 
+            g_loss.backward()
             optimizer_mlm.step()
-
+            logging_numbers['cumulative_generator_loss'] += g_loss.item()
             global_step += 1
-            # TODO: Fix Logging
-            d_preds = (d_output > 0).to(torch.long)
-            d_acc = int((d_preds == langs).sum()) / (langs.shape[0])
-            logging_numbers[0] += lm_loss.item()
-            logging_numbers[1] += g_loss.item()
-            logging_numbers[2] += d_loss.item()
-            logging_numbers[3] += d_acc
+
 
             if args.logging_steps > 0 and global_step % args.logging_steps == 0:
                 # Log metrics
                 # Only evaluate when single GPU otherwise metrics may not average well
                 logging.info('Step: {}'.format(global_step))
-                logging.info('MLM Loss: {}'.format(logging_numbers[0]/args.logging_steps))
-                logging.info('Generator Loss: {}'.format(logging_numbers[1]/args.logging_steps))
-                logging.info('Total Loss: {}'.format((logging_numbers[0] + args.alpha * logging_numbers[1])/args.logging_steps))
-                logging.info('Discriminator Loss: {}'.format(logging_numbers[2]/args.logging_steps))
-                logging.info('Discriminator Acc: {}'.format(logging_numbers[3]/args.logging_steps))
-                logging.info('NER Loss: {}'.format(logging_numbers[4]/args.logging_steps))
-
-                tb_writer.add_scalar('MLM_Loss', logging_numbers[0]/args.logging_steps, global_step)
-                tb_writer.add_scalar('Generator_Loss', logging_numbers[1]/args.logging_steps, global_step)
-                tb_writer.add_scalar('Total_Loss', logging_numbers[0] + args.alpha * logging_numbers[1], global_step)
-                tb_writer.add_scalar('Discriminator_Loss', logging_numbers[2]/args.logging_steps, global_step)
-                tb_writer.add_scalar('Discriminator_Acc', logging_numbers[3]/args.logging_steps, global_step)
-                tb_writer.add_scalar('NER_Loss', logging_numbers[4]/args.logging_steps, global_step)
-
-                logging_numbers = [0.0, 0.0, 0.0, 0.0, 0.0]
+                for k, v in logging_numbers.items():
+                    logging.info("{}: {}".format(k, v / args.logging_steps))
+                    tb_writer.add_scalar(k, v / args.logging_steps, global_step)
+                    logging_numbers[k] = 0.0
             
             if args.quick_evaluate_steps > 0 and global_step % args.quick_evaluate_steps == 0:
                 _,p,r,f = evaluate_ner(args, model_ner, dev_dataset_src)
