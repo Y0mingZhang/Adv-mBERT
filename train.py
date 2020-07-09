@@ -265,20 +265,20 @@ def train(args, data, models, sd, td, tokenizer):
 
         logging.info("   Begin Epoch {}   ".format(epoch))
         logging_numbers = {
-            'ner_loss' : 0.0,
-            'lm_loss' : 0.0,
-            'cumulative_generator_loss' : 0.0
+            'ner_loss' : [],
+            'lm_loss' : [],
+            'cumulative_generator_loss' : []
         }
         if sd:
             logging_numbers.update(
-            {'sentence_discriminator_d_loss' : 0.0,
-            'sentence_discriminator_g_loss' : 0.0,
-            'sentence_discriminator_acc' : 0.0})
+            {'sentence_discriminator_d_loss' : [],
+            'sentence_discriminator_g_loss' : [],
+            'sentence_discriminator_acc' : []})
         if td:
             logging_numbers.update(
-            {'token_discriminator_d_loss' : 0.0,
-            'token_discriminator_g_loss' : 0.0,
-            'token_discriminator_acc' : 0.0})
+            {'token_discriminator_d_loss' : [],
+            'token_discriminator_g_loss' : [],
+            'token_discriminator_acc' : []})
 
         for step, (batch_mlm, batch_ner) in tqdm(enumerate(zip(train_dataloader_mlm, train_dataloader_ner))):
             """ ner stuff """
@@ -293,7 +293,7 @@ def train(args, data, models, sd, td, tokenizer):
             loss = model_ner(input_ids=tokens, attention_mask=mask, labels=labels)[0]
             loss.backward()
             optimizer_ner.step()
-            logging_numbers['ner_loss'] += loss.item()
+            logging_numbers['ner_loss'].append(loss.item())
 
             """ mlm stuff """
             model_mlm.train()
@@ -342,7 +342,7 @@ def train(args, data, models, sd, td, tokenizer):
             if args.n_gpu > 1:
                 lm_loss = lm_loss.mean()
             g_loss = lm_loss
-            logging_numbers['lm_loss'] += lm_loss.item()
+            logging_numbers['lm_loss'].append(lm_loss.item())
             
 
             # Train D
@@ -361,10 +361,10 @@ def train(args, data, models, sd, td, tokenizer):
                         td_loss = td_loss.mean()
                     td_loss.backward()
                     td_optimizer.step()
-                    logging_numbers['token_discriminator_d_loss'] += td_loss.item()
+                    logging_numbers['token_discriminator_d_loss'].append(td_loss.item())
                     td_preds = (td_output > 0).to(torch.long)
                     td_acc = int((td_preds == langs).sum()) / (langs.shape[0])
-                    logging_numbers['token_discriminator_acc'] += td_loss.item()
+                    logging_numbers['token_discriminator_acc'].append(td_loss.item())
                 if sd:
                     sd_output = sd(inputs_embeds=d_input, attention_mask=mask,
                         labels=None)[0].view(-1)
@@ -373,10 +373,10 @@ def train(args, data, models, sd, td, tokenizer):
                         sd_loss = sd_loss.mean()
                     sd_loss.backward()
                     sd_optimizer.step()
-                    logging_numbers['sentence_discriminator_d_loss'] += sd_loss.item()
+                    logging_numbers['sentence_discriminator_d_loss'].append(sd_loss.item())
                     sd_preds = (sd_output > 0).to(torch.long)
                     sd_acc = int((sd_preds == langs).sum()) / (langs.shape[0])
-                    logging_numbers['sentence_discriminator_acc'] += sd_loss.item()
+                    logging_numbers['sentence_discriminator_acc'].append(sd_loss.item())
             # Train G
 
             # Update generator w/ fake labels
@@ -389,7 +389,7 @@ def train(args, data, models, sd, td, tokenizer):
                 if args.n_gpu > 1:
                     td_g_loss = td_g_loss.mean()
                 g_loss += td_g_loss * args.td_weight
-                logging_numbers['token_discriminator_g_loss'] += td_loss.item()
+                logging_numbers['token_discriminator_g_loss'].append(td_loss.item())
 
 
             if sd:
@@ -401,11 +401,11 @@ def train(args, data, models, sd, td, tokenizer):
                 if args.n_gpu > 1:
                     sd_g_loss = sd_g_loss.mean()
                 g_loss += sd_g_loss * args.sd_weight
-                logging_numbers['sentence_discriminator_g_loss'] += sd_loss.item()
+                logging_numbers['sentence_discriminator_g_loss'].append(sd_loss.item())
 
             g_loss.backward()
             optimizer_mlm.step()
-            logging_numbers['cumulative_generator_loss'] += g_loss.item()
+            logging_numbers['cumulative_generator_loss'].append(g_loss.item())
             global_step += 1
 
 
@@ -414,9 +414,9 @@ def train(args, data, models, sd, td, tokenizer):
                 # Only evaluate when single GPU otherwise metrics may not average well
                 logging.info('Step: {}'.format(global_step))
                 for k, v in logging_numbers.items():
-                    logging.info("{}: {}".format(k, v / args.logging_steps))
-                    tb_writer.add_scalar(k, v / args.logging_steps, global_step)
-                    logging_numbers[k] = 0.0
+                    logging.info("{}: {}".format(k, sum(v) / len(v)))
+                    tb_writer.add_scalar(k, sum(v) / len(v), global_step)
+                    logging_numbers[k] = []
             
             if args.quick_evaluate_steps > 0 and global_step % args.quick_evaluate_steps == 0:
                 _,p,r,f = evaluate_ner(args, model_ner, dev_dataset_src)
