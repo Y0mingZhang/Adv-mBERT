@@ -112,8 +112,12 @@ def main():
     parser.add_argument("--smoothing", type=float, default=0.0)
     parser.add_argument("--do_word_translation_retrieval", action="store_true")
     parser.add_argument("--d_update_steps", type=int, default=1)
-    parser.add_argument("--mean_pool", action="store_true")
-
+    parser.add_argument("--token_discriminator", action="store_true")
+    parser.add_argument("--sentence_discriminator", action="store_true")
+    parser.add_argument("--td_lr", type=float, default=2e-4)
+    parser.add_argument("--sd_lr", type=float, default=5e-5)
+    parser.add_argument("--td_weight", type=float, default=2e-4)
+    parser.add_argument("--sd_weight", type=float, default=5e-5)
 
     args = parser.parse_args()
 
@@ -166,14 +170,16 @@ def main():
 
     bc = BertConfig(hidden_size=model_mlm.config.hidden_size, num_hidden_layers=6, num_attention_heads=6,intermediate_size=768)
     bc.num_labels = 1
-    if args.mean_pool:
-        discriminator = MeanPoolingDiscriminator()
+    # TODO:fix
+    
+    sd = MeanPoolingDiscriminator().to(args.device) if args.sentence_discriminator else None
+    if args.token_discriminator:
+        td = AutoModelForSequenceClassification.from_config(bc).to(args.device)
+        td.init_weights()
     else:
-        discriminator = AutoModelForSequenceClassification.from_config(bc)
-
-    discriminator.to(args.device)
+        td = None
+    
     logger.info("Training/evaluation parameters %s", args)
-
     # Training
 
 
@@ -199,8 +205,8 @@ def main():
 
 
     global_step, tr_loss = train(args, (train_dataset, ner_corpus), 
-     (model_mlm, model_ner),
-     discriminator, tokenizer)
+     (model_mlm, model_ner), sd, td,
+     tokenizer)
     logger.info(" global_step = %s, average loss = %s",
                 global_step, tr_loss)
 

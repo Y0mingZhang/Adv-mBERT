@@ -186,7 +186,7 @@ def _rotate_checkpoints(args, checkpoint_prefix, use_mtime=False):
         shutil.rmtree(checkpoint)
 
 
-def train(args, data, models, discriminator, tokenizer):
+def train(args, data, models, sd, td, tokenizer):
     torch.autograd.set_detect_anomaly(True)
     model_mlm, model_ner = models
     train_dataset_mlm, ner_corpus = data
@@ -224,16 +224,21 @@ def train(args, data, models, discriminator, tokenizer):
 
     optimizer_ner = AdamW(model_ner.parameters(),
                       lr=args.ner_lr, eps=args.adam_epsilon)
-    
-    d_optimizer = AdamW(discriminator.parameters(),
-                      lr=args.d_lr)
+
+    if td:
+        td_optimizer = AdamW(td.parameters(),
+                      lr=args.td_lr)
+    if sd:
+        sd_optimizer = AdamW(sd.parameters(),
+                      lr=args.sd_lr)
 
     d_criterion = nn.CrossEntropyLoss()
 
     if args.n_gpu > 1:
         model_mlm = torch.nn.DataParallel(model_mlm)
         model_ner = torch.nn.DataParallel(model_ner)
-        discriminator = torch.nn.DataParallel(discriminator)
+        td = torch.nn.DataParallel(td)
+        sd = torch.nn.DataParallel(sd)
 
     # Make mask token backward compatible
     if args.legacy:
@@ -253,7 +258,6 @@ def train(args, data, models, discriminator, tokenizer):
     global_step = 0
     tr_loss = 0.0
 
-    d_acc_last_batch = 0.5
     
     train_iterator = tqdm(range(int(args.num_train_epochs)),
                             desc="Epoch")
@@ -279,7 +283,10 @@ def train(args, data, models, discriminator, tokenizer):
 
             """ mlm stuff """
             model_mlm.train()
-            discriminator.train()
+            if td:
+                td.train()
+            if sd:
+                sd.train()
             optimizer_mlm.zero_grad()
             tokens, mask, langs = batch_mlm
             try: 
@@ -317,41 +324,64 @@ def train(args, data, models, discriminator, tokenizer):
             # Get masked-lm loss & last hidden state
             lm_loss = outputs[0]
             last_layer = outputs[2][-1]
+
+            if args.n_gpu > 1:
+                lm_loss = lm_loss.mean()
+            lm_loss.backward()
             
 
             # Train D
             if global_step % args.d_update_steps == 0:
-                discriminator.zero_grad()
+                if td:
+                    td.zero_grad()
+                if sd:
+                    sd.zero_grad()
                 d_input = last_layer.detach()
                 mask = mask.to(torch.float)
-                d_output = discriminator(inputs_embeds=d_input, attention_mask=mask,
-                labels=None)[0].view(-1)          
-                d_loss = F.binary_cross_entropy_with_logits(d_output, d_labels)       
-                if args.n_gpu > 1:
-                    d_loss = d_loss.mean()
-                d_loss.backward()
-                d_optimizer.step()
+                if td:
+                    td_output = td(inputs_embeds=d_input, attention_mask=mask,
+                        labels=None)[0].view(-1)
+                    td_loss = F.binary_cross_entropy_with_logits(td_output, d_labels)       
+                    if args.n_gpu > 1:
+                        td_loss = d_loss.mean()
+                    td_loss.backward()
+                    td_optimizer.step()
+                if sd:
+                    sd_output = sd(inputs_embeds=d_input, attention_mask=mask,
+                        labels=None)[0].view(-1)
+                    sd_loss = F.binary_cross_entropy_with_logits(sd_output, d_labels)       
+                    if args.n_gpu > 1:
+                        sd_loss = d_loss.mean()
+                    sd_loss.backward()
+                    sd_optimizer.step() 
 
             # Train G
-            model_mlm.zero_grad()
 
             # Update generator w/ fake labels
-            d_output = discriminator(inputs_embeds=last_layer, attention_mask=mask,
-             labels=None)[0].view(-1)
+            if td:
+                td_output = td(inputs_embeds=last_layer, attention_mask=mask,
+                    labels=None)[0].view(-1)
+                
+                td_g_loss = F.binary_cross_entropy_with_logits(td_output, g_labels)
             
+                if args.n_gpu > 1:
+                    td_g_loss = g_loss.mean()
+                td_g_loss.backward()
 
-            g_loss = F.binary_cross_entropy_with_logits(d_output, g_labels)
+            if sd:
+                sd_output = sd(inputs_embeds=last_layer, attention_mask=mask,
+                    labels=None)[0].view(-1)
+                
+                sd_g_loss = F.binary_cross_entropy_with_logits(sd_output, g_labels)
             
-            if args.n_gpu > 1:
-                lm_loss = lm_loss.mean()
-                g_loss = g_loss.mean()
+                if args.n_gpu > 1:
+                    sd_g_loss = g_loss.mean()
+                sd_g_loss.backward()
 
-            loss = lm_loss + args.alpha * g_loss
-            loss.backward()
             optimizer_mlm.step()
 
             global_step += 1
-
+            # TODO: Fix Logging
             d_preds = (d_output > 0).to(torch.long)
             d_acc = int((d_preds == langs).sum()) / (langs.shape[0])
             logging_numbers[0] += lm_loss.item()
