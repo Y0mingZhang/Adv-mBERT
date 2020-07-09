@@ -364,7 +364,7 @@ def train(args, data, models, sd, td, tokenizer):
                     logging_numbers['token_discriminator_d_loss'].append(td_loss.item())
                     td_preds = (td_output > 0).to(torch.long)
                     td_acc = int((td_preds == langs).sum()) / (langs.shape[0])
-                    logging_numbers['token_discriminator_acc'].append(td_loss.item())
+                    logging_numbers['token_discriminator_acc'].append(td_acc)
                 if sd:
                     sd_output = sd(inputs_embeds=d_input, attention_mask=mask,
                         labels=None)[0].view(-1)
@@ -376,7 +376,7 @@ def train(args, data, models, sd, td, tokenizer):
                     logging_numbers['sentence_discriminator_d_loss'].append(sd_loss.item())
                     sd_preds = (sd_output > 0).to(torch.long)
                     sd_acc = int((sd_preds == langs).sum()) / (langs.shape[0])
-                    logging_numbers['sentence_discriminator_acc'].append(sd_loss.item())
+                    logging_numbers['sentence_discriminator_acc'].append(sd_acc)
             # Train G
 
             # Update generator w/ fake labels
@@ -389,7 +389,7 @@ def train(args, data, models, sd, td, tokenizer):
                 if args.n_gpu > 1:
                     td_g_loss = td_g_loss.mean()
                 g_loss += td_g_loss * args.td_weight
-                logging_numbers['token_discriminator_g_loss'].append(td_loss.item())
+                logging_numbers['token_discriminator_g_loss'].append(td_g_loss.item())
 
 
             if sd:
@@ -401,7 +401,7 @@ def train(args, data, models, sd, td, tokenizer):
                 if args.n_gpu > 1:
                     sd_g_loss = sd_g_loss.mean()
                 g_loss += sd_g_loss * args.sd_weight
-                logging_numbers['sentence_discriminator_g_loss'].append(sd_loss.item())
+                logging_numbers['sentence_discriminator_g_loss'].append(sd_g_loss.item())
 
             g_loss.backward()
             optimizer_mlm.step()
