@@ -35,7 +35,7 @@ from transformers import (AdamW, get_linear_schedule_with_warmup,
 
 from tqdm.auto import tqdm
 
-from dataset import TextDataset, tag2id, id2tag
+from dataset import TextDataset
 from model import *
 from utils import get_lexicon_matching, score_predictions
 
@@ -188,6 +188,8 @@ def _rotate_checkpoints(args, checkpoint_prefix, use_mtime=False):
 
 
 def train(args, data, models, sd, td, tokenizer):
+    from dataset import tag2id, id2tag
+
     model_mlm, model_ner = models
     train_dataset_mlm, ner_corpus = data
     train_dataset_ner = ner_corpus[args.src].datasets['train']
