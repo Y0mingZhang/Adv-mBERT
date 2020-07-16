@@ -423,8 +423,9 @@ def train(args, data, models, sd, td, tokenizer):
                 # Only evaluate when single GPU otherwise metrics may not average well
                 logging.info('Step: {}'.format(global_step))
                 for k, v in logging_numbers.items():
-                    logging.info("{}: {}".format(k, sum(v) / len(v)))
-                    tb_writer.add_scalar(k, sum(v) / len(v), global_step)
+                    if v:
+                        logging.info("{}: {}".format(k, sum(v) / len(v)))
+                        tb_writer.add_scalar(k, sum(v) / len(v), global_step)
                     logging_numbers[k] = []
             
             if args.quick_evaluate_steps > 0 and global_step % args.quick_evaluate_steps == 0:
