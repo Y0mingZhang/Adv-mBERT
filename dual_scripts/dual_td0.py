@@ -15,7 +15,7 @@ set -e
 set -x
 
 OUTDIR=/scratch/mihalcea_root/mihalcea1/yimingz/data/training_output/adv-mbert/dual_experiments/dual_td0
-mkdir $OUTDIR
+mkdir -p $OUTDIR
 
 cat /scratch/mihalcea_root/mihalcea1/yimingz/WIKI_DATA/en/en.all | head -n10000 \
  > /scratch/mihalcea_root/mihalcea1/yimingz/WIKI_DATA/en/en.10000
@@ -32,7 +32,6 @@ python3 /scratch/mihalcea_root/mihalcea1/yimingz/src/Adv-mBERT/main.py \
 --logging_steps 50 \
 --ner-lr 2e-5 \
 --g-lr 2e-5 \
---d-lr 2e-4 \
 --quick_evaluate_steps 1000 \
 --quick_evaluate_ratio 0.1 \
 --cache_dir /scratch/mihalcea_root/mihalcea1/yimingz/data/cache_dir \
