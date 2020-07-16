@@ -117,6 +117,8 @@ def main():
     parser.add_argument("--sd_lr", type=float, default=2e-4)
     parser.add_argument("--td_weight", type=float, default=1.0)
     parser.add_argument("--sd_weight", type=float, default=1.0)
+    parser.add_argument("--skip_ner", action="store_true")
+
 
     args = parser.parse_args()
 
@@ -169,7 +171,6 @@ def main():
 
     bc = BertConfig(hidden_size=model_mlm.config.hidden_size, num_hidden_layers=6, num_attention_heads=6,intermediate_size=768)
     bc.num_labels = 1
-    # TODO:fix
     
     sd = MeanPoolingDiscriminator().to(args.device) if args.sentence_discriminator else None
     if args.token_discriminator:

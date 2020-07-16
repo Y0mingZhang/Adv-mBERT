@@ -30,7 +30,8 @@ import transformers
 from transformers import (AdamW, get_linear_schedule_with_warmup,
                           BertConfig, BertForMaskedLM, BertTokenizer,
                           XLMConfig, XLMWithLMHeadModel, XLMTokenizer,
-                          XLMRobertaConfig, XLMRobertaTokenizer, XLMRobertaForMaskedLM)
+                          XLMRobertaConfig, XLMRobertaTokenizer, XLMRobertaForMaskedLM,
+                          get_constant_schedule_with_warmup)
 
 from tqdm.auto import tqdm
 
@@ -220,16 +221,19 @@ def train(args, data, models, sd, td, tokenizer):
 
     optimizer_mlm = AdamW(model_mlm.parameters(),
                       lr=args.g_lr, eps=args.adam_epsilon)
-
+    scheduler_mlm = get_constant_schedule_with_warmup(optimizer_mlm, args.warmup_steps)
     optimizer_ner = AdamW(model_ner.parameters(),
                       lr=args.ner_lr, eps=args.adam_epsilon)
+    scheduler_ner = get_constant_schedule_with_warmup(optimizer_ner, args.warmup_steps)
 
     if td:
         td_optimizer = AdamW(td.parameters(),
                       lr=args.td_lr)
+        scheduler_td = get_constant_schedule_with_warmup(td_optimizer, args.warmup_steps//args.d_update_steps)
     if sd:
         sd_optimizer = AdamW(sd.parameters(),
                       lr=args.sd_lr)
+        scheduler_sd = get_constant_schedule_with_warmup(sd_optimizer, args.warmup_steps//args.d_update_steps)
 
     d_criterion = nn.CrossEntropyLoss()
 
@@ -282,18 +286,20 @@ def train(args, data, models, sd, td, tokenizer):
 
         for step, (batch_mlm, batch_ner) in tqdm(enumerate(zip(train_dataloader_mlm, train_dataloader_ner))):
             """ ner stuff """
-            model_ner.train()
-            optimizer_ner.zero_grad()
-            batch_ner = [t.to(args.device) for t in batch_ner]
-            tokens, mask, labels = batch_ner
-            
-            if args.replace_word_translation_ner:
-                replace_word_translation(args, tokens, tokenizer, matching)
-            
-            loss = model_ner(input_ids=tokens, attention_mask=mask, labels=labels)[0]
-            loss.backward()
-            optimizer_ner.step()
-            logging_numbers['ner_loss'].append(loss.item())
+            if not args.skip_ner:
+                model_ner.train()
+                optimizer_ner.zero_grad()
+                batch_ner = [t.to(args.device) for t in batch_ner]
+                tokens, mask, labels = batch_ner
+                
+                if args.replace_word_translation_ner:
+                    replace_word_translation(args, tokens, tokenizer, matching)
+                
+                loss = model_ner(input_ids=tokens, attention_mask=mask, labels=labels)[0]
+                loss.backward()
+                optimizer_ner.step()
+                scheduler_ner.step()
+                logging_numbers['ner_loss'].append(loss.item())
 
             """ mlm stuff """
             model_mlm.train()
@@ -361,6 +367,7 @@ def train(args, data, models, sd, td, tokenizer):
                         td_loss = td_loss.mean()
                     td_loss.backward()
                     td_optimizer.step()
+                    scheduler_td.step()
                     logging_numbers['token_discriminator_d_loss'].append(td_loss.item())
                     td_preds = (td_output > 0).to(torch.long)
                     td_acc = int((td_preds == langs).sum()) / (langs.shape[0])
@@ -373,6 +380,7 @@ def train(args, data, models, sd, td, tokenizer):
                         sd_loss = sd_loss.mean()
                     sd_loss.backward()
                     sd_optimizer.step()
+                    scheduler_sd.step()
                     logging_numbers['sentence_discriminator_d_loss'].append(sd_loss.item())
                     sd_preds = (sd_output > 0).to(torch.long)
                     sd_acc = int((sd_preds == langs).sum()) / (langs.shape[0])
@@ -405,6 +413,7 @@ def train(args, data, models, sd, td, tokenizer):
 
             g_loss.backward()
             optimizer_mlm.step()
+            scheduler_mlm.step()
             logging_numbers['cumulative_generator_loss'].append(g_loss.item())
             global_step += 1
 
