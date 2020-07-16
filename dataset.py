@@ -78,6 +78,13 @@ class TextDataset(Dataset):
 tag2id = None
 id2tag = None
 
+iso2conll = {
+    'en' : 'eng',
+    'de' : 'deu',
+    'es' : 'esp',
+    'nl' : 'ned'
+}
+
 def tag_init(mode):
     global tag2id
     global id2tag
@@ -207,3 +214,148 @@ class PANX_corpus():
     
     def get_test_data(self):
         return self.corpus['test'][1], self.datasets['test']
+
+
+class CoNLL_corpus():
+    def __init__(self, corpus_path, lang, tokenizer):
+        """ 
+        Input:
+            corpus_path: path to a directory 
+            where files in the format (**.train/testa/testb) exists
+
+        Example Usage:
+            eng_corpus = ConLL_corpus('./data/eng')
+            train_tokens, train_tags = eng_corpus.get_training_data()
+        """
+        assert(len(tag2id) == 10)
+        lang = iso2conll[lang]
+        corpus_path = os.path.join(corpus_path, lang)
+        self.corpus = {}
+        self.datasets = {}
+        self.lang = lang
+        for f in glob.glob(corpus_path + '/*'):
+            
+            part = f.split('.')[-1]
+            if part not in ('train', 'testa', 'testb'): continue
+            tokens, tags, td = self.parse_file(f, tokenizer)
+
+            
+            self.corpus[part] = (tokens, tags)
+            self.datasets[part] = td
+        
+        # Map dev and test
+        self.corpus['dev'] = self.corpus['testa']
+        self.datasets['dev'] = self.datasets['testa']
+        self.corpus['test'] = self.corpus['testb']
+        self.datasets['test'] = self.datasets['testb']
+        
+
+    def parse_file(self, file, tokenizer):
+        
+        tokens = []
+        tags = []
+        seq_tokens = []
+        seq_tags = []
+
+        bert_tokens = []
+        bert_attns = []
+        bert_tags = []
+
+        for line in tqdm(open(file, encoding="utf-8")):
+
+            if 'DOCSTART' in line:
+                continue
+
+            fields = line.strip().split()
+
+            if not line.strip():
+                if seq_tokens and seq_tags:
+                    assert(len(seq_tokens) == len(seq_tags))
+                    iids = [tokenizer.cls_token_id]
+                    attns = [1]
+                    labels = [tag2id['UNDEFINED']]
+
+                    for token, tag in zip(seq_tokens, seq_tags):
+                        tokenized_token = tokenizer.convert_tokens_to_ids(tokenizer.tokenize(token))
+                        if tokenized_token:
+                            iids.extend(tokenized_token)
+                            labels.extend([tag2id[tag]] + [tag2id['UNDEFINED']] * (len(tokenized_token)-1))
+                            attns.extend([1] * len(tokenized_token))
+                    
+                    iids.append(tokenizer.sep_token_id)
+                    attns.append(1)
+                    labels.append(tag2id['UNDEFINED'])
+
+                    assert(len(iids) == len(labels))
+                    if len(iids) > 128:
+                        seq_tokens = []
+                        seq_tags = []
+                        continue
+                        
+                    pad_length = 128 - len(iids)
+                    iids.extend([tokenizer.pad_token_id] * pad_length)
+                    attns.extend([0] * pad_length)
+                    labels.extend([tag2id['UNDEFINED']] * pad_length)
+
+                    tokens.append(seq_tokens)
+                    tags.append(seq_tags)
+
+                    assert(len(iids) == len(labels))
+
+                    bert_tokens.append(iids)
+                    bert_attns.append(attns)
+                    bert_tags.append(labels)
+
+                    seq_tokens = []
+                    seq_tags = []
+            else:
+                seq_tokens.append(fields[0])
+                seq_tags.append(fields[-1])
+
+        if seq_tokens and seq_tags:
+            assert(len(seq_tokens) == len(seq_tags))
+            iids = [tokenizer.cls_token_id]
+            attns = [1]
+            labels = [tag2id['UNDEFINED']]
+
+            for token, tag in zip(seq_tokens, seq_tags):
+                tokenized_token = tokenizer.convert_tokens_to_ids(tokenizer.tokenize(token))
+                if tokenized_token:
+                    iids.extend(tokenized_token)
+                    labels.extend([tag2id[tag]] + [tag2id['UNDEFINED']] * (len(tokenized_token)-1))
+                    attns.extend([1] * len(tokenized_token))
+            
+            iids.append(tokenizer.sep_token_id)
+            attns.append(1)
+            labels.append(tag2id['UNDEFINED'])
+
+            assert(len(iids) == len(labels))
+            if len(iids) <= 128:
+                pad_length = 128 - len(iids)
+                iids.extend([tokenizer.pad_token_id] * pad_length)
+                attns.extend([0] * pad_length)
+                labels.extend([tag2id['UNDEFINED']] * pad_length)
+
+                tokens.append(seq_tokens)
+                tags.append(seq_tags)
+
+                assert(len(iids) == len(labels))
+
+                bert_tokens.append(iids)
+                bert_attns.append(attns)
+                bert_tags.append(labels)
+
+                seq_tokens = []
+                seq_tags = []
+
+        td = TensorDataset(torch.LongTensor(bert_tokens), torch.FloatTensor(bert_attns), torch.LongTensor(bert_tags))
+        return tokens, tags, td
+    
+    def get_training_data(self):
+        return self.corpus['train'][1], self.datasets['train']
+    
+    def get_validation_data(self):
+        return self.corpus['testa'][1], self.datasets['testa']
+    
+    def get_test_data(self):
+        return self.corpus['testb'][1], self.datasets['testb']

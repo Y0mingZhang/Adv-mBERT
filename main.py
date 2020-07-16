@@ -5,9 +5,8 @@ import os
 
 
 
-from dataset import PANX_corpus, tag_init
-tag_init('wikiann')
-from dataset import tag2id
+from dataset import tag_init
+
 
 from train import *
 
@@ -118,9 +117,18 @@ def main():
     parser.add_argument("--td_weight", type=float, default=1.0)
     parser.add_argument("--sd_weight", type=float, default=1.0)
     parser.add_argument("--skip_ner", action="store_true")
+    parser.add_argument("--ner_dataset", type=str, choices=["wikiann", "conll"], default="wikiann")
 
 
     args = parser.parse_args()
+
+    tag_init(args.ner_dataset)
+
+    if args.ner_dataset == 'wikiann':
+        from dataset import PANX_corpus as NER_corpus
+    else:
+        from dataset import CoNLL_corpus as NER_corpus
+    from dataset import tag2id
 
     if args.smoothing < 0 or args.smoothing > 0.5:
         raise ValueError("Label smoothing must be between 0 and 0.5")
@@ -192,14 +200,14 @@ def main():
     if not os.path.isdir(ner_cache_dir):
         os.makedirs(ner_cache_dir)
     ner_cache = os.path.join(ner_cache_dir, 
-     '_'.join([args.model_name_or_path, args.src, args.tgt]) + '.pt')
+     '_'.join([args.ner_dataset, args.model_name_or_path, args.src, args.tgt]) + '.pt')
 
     if os.path.exists(ner_cache):
         ner_corpus = torch.load(ner_cache)
     else:
         ner_corpus = {
-            args.src : PANX_corpus(args.ner_dir, args.src, tokenizer),
-            args.tgt : PANX_corpus(args.ner_dir, args.tgt, tokenizer)
+            args.src : NER_corpus(args.ner_dir, args.src, tokenizer),
+            args.tgt : NER_corpus(args.ner_dir, args.tgt, tokenizer)
         }
         torch.save(ner_corpus, ner_cache)
 
