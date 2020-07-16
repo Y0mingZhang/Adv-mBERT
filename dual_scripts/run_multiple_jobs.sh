@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-for FILE in make_job*.py
+for FILE in dual*.py
 do
 for LANG in he bg fa fi
 do
