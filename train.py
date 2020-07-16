@@ -188,8 +188,6 @@ def _rotate_checkpoints(args, checkpoint_prefix, use_mtime=False):
 
 
 def train(args, data, models, sd, td, tokenizer):
-    from dataset import tag2id, id2tag
-
     model_mlm, model_ner = models
     train_dataset_mlm, ner_corpus = data
     train_dataset_ner = ner_corpus[args.src].datasets['train']
@@ -477,6 +475,7 @@ def train(args, data, models, sd, td, tokenizer):
 
 
 def evaluate_ner(args, model_ner, ner_dataset):
+    from dataset import tag2id, id2tag
     model_ner.eval()
     if args.quick_evaluate_ratio < 1.0:
         dataset_size = min(len(ner_dataset), int(10000 * args.quick_evaluate_ratio))
