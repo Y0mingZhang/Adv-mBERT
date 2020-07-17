@@ -118,7 +118,8 @@ def main():
     parser.add_argument("--sd_weight", type=float, default=1.0)
     parser.add_argument("--skip_ner", action="store_true")
     parser.add_argument("--ner_dataset", type=str, choices=["wikiann", "conll"], default="wikiann")
-
+    parser.add_argument("--td_layers", type=int, default=6)
+    parser.add_argument("--td_attention_heads", type=int, default=6)
     args = parser.parse_args()
 
     tag_init(args.ner_dataset)
@@ -176,7 +177,8 @@ def main():
     model_mlm.to(args.device)
     model_ner.to(args.device)
 
-    bc = BertConfig(hidden_size=model_mlm.config.hidden_size, num_hidden_layers=6, num_attention_heads=6,intermediate_size=768)
+    bc = BertConfig(hidden_size=model_mlm.config.hidden_size, num_hidden_layers=args.td_layers,
+     num_attention_heads=args.td_attention_heads, intermediate_size=768)
     bc.num_labels = 1
     
     sd = MeanPoolingDiscriminator().to(args.device) if args.sentence_discriminator else None
