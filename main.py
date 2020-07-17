@@ -119,7 +119,6 @@ def main():
     parser.add_argument("--skip_ner", action="store_true")
     parser.add_argument("--ner_dataset", type=str, choices=["wikiann", "conll"], default="wikiann")
 
-
     args = parser.parse_args()
 
     tag_init(args.ner_dataset)
