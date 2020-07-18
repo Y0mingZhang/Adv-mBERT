@@ -14,7 +14,7 @@ TGT={}
 set -e
 set -x
 
-OUTDIR=/scratch/mihalcea_root/mihalcea1/yimingz/data/training_output/adv-mbert/dual_experiments/dual_td0.1_3_skipner
+OUTDIR=/scratch/mihalcea_root/mihalcea1/yimingz/data/training_output/adv-mbert/dual_experiments/dual_td0.1_3_skipner_nt
 mkdir -p $OUTDIR
 
 cat /scratch/mihalcea_root/mihalcea1/yimingz/WIKI_DATA/en/en.all | head -n10000 \
