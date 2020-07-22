@@ -19,7 +19,7 @@ def get_lexicon_matching(args, tokenizer):
     matching = dd(list)
     sw = set(stopwords.words())
 
-    with open(args.lexicon_path, 'r') as f:
+    with open(args.lexicon_path, 'r', encoding="utf-8") as f:
         for line in tqdm(f):
             line = line.strip()
             word, word_trans = line.split('\t') if '\t' in line else line.split()
