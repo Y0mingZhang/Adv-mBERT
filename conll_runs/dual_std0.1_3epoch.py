@@ -38,14 +38,15 @@ python3 /scratch/mihalcea_root/mihalcea1/yimingz/src/Adv-mBERT/main.py \
 --output_dir $OUTDIR \
 --train_data_file /scratch/mihalcea_root/mihalcea1/yimingz/WIKI_DATA/en/en.10000 /scratch/mihalcea_root/mihalcea1/yimingz/WIKI_DATA/$TGT/$TGT.10000 \
 --lexicon_path /scratch/mihalcea_root/mihalcea1/yimingz/data/lexicon/en-$TGT.txt \
---ner_dir /scratch/mihalcea_root/mihalcea1/yimingz/data/panx_dataset \
+--ner_dir /scratch/mihalcea_root/mihalcea1/yimingz/src/ZLT/data \
+--ner_dataset conll \
 --save_steps 10000 \
 --smoothing 0.2 \
 --alpha 0.1 \
 --d_update_steps 5 \
 --token_discriminator \
 --sentence_discriminator \
---td_weight 0.1 \
+--td_weight 0.2 \
 --td_layers 2 \
 --td_attention_heads 12
 """
