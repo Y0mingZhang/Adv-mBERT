@@ -237,14 +237,6 @@ def train(args, data, models, sd, td, tokenizer):
     tb_writer = SummaryWriter(tb_path)
     args.train_batch_size = args.per_gpu_train_batch_size * max(1, args.n_gpu)
 
-    if args.max_steps > 0:
-        t_total = args.max_steps
-        args.num_train_epochs = args.max_steps // (
-            len(train_dataset_mlm) // args.gradient_accumulation_steps) + 1
-    else:
-        t_total = len(
-            train_dataset_mlm) // args.train_batch_size // args.gradient_accumulation_steps * \
-             args.num_train_epochs
 
 
     optimizer_mlm = AdamW(model_mlm.parameters(),
@@ -284,7 +276,6 @@ def train(args, data, models, sd, td, tokenizer):
     logger.info("  Num Epochs = %d", args.num_train_epochs)
     logger.info("  Gradient Accumulation steps = %d",
                 args.gradient_accumulation_steps)
-    logger.info("  Total optimization steps = %d", t_total)
 
     global_step = 0
     tr_loss = 0.0
@@ -312,140 +303,142 @@ def train(args, data, models, sd, td, tokenizer):
             'token_discriminator_g_loss' : [],
             'token_discriminator_acc' : []})
 
-        for step, (batch_mlm, batch_ner) in tqdm(enumerate(zip(train_dataloader_mlm, train_dataloader_ner))):
-            """ ner stuff """
-            if not args.skip_ner:
-                model_ner.train()
-                optimizer_ner.zero_grad()
-                batch_ner = [t.to(args.device) for t in batch_ner]
-                tokens, mask, labels = batch_ner
-                
-                if args.replace_word_translation_ner:
-                    replace_word_translation(args, tokens, tokenizer, matching)
-                
-                loss = model_ner(input_ids=tokens, attention_mask=mask, labels=labels)[0]
-                loss.backward()
-                optimizer_ner.step()
-                scheduler_ner.step()
-                logging_numbers['ner_loss'].append(loss.item())
-
-            """ mlm stuff """
-            model_mlm.train()
-            if td:
-                td.train()
-            if sd:
-                sd.train()
-            optimizer_mlm.zero_grad()
-            tokens, mask, langs = batch_mlm
-            try: 
-                inputs, labels = _mask_tokens(
-                    tokens, mask, tokenizer, args)
-            except TypeError:
-                _mask_tokens = mask_tokens_legacy
-                inputs, labels = _mask_tokens(
-                    tokens, mask, tokenizer, args)
-
-            if args.replace_word_translation:
-                replace_word_translation(args, inputs, tokenizer, matching)
-
-            if args.do_word_translation_retrieval:
-                replace_word_translation_labels(args, inputs, labels, tokenizer, matching)
-            tokens = tokens.to(args.device)
-            inputs = inputs.to(args.device)
-            labels = labels.to(args.device)
-            mask = mask.to(args.device)
+        for step, (batch_type, batch) in tqdm(enumerate(variable_mlm_ner_ratio(train_dataloader_mlm, train_dataloader_ner, args.mlm_freq, args.ner_freq))):
+            if batch_type == 'NER':
+                """ ner stuff """
+                batch_ner = batch
+                if not args.skip_ner:
+                    model_ner.train()
+                    optimizer_ner.zero_grad()
+                    batch_ner = [t.to(args.device) for t in batch_ner]
+                    tokens, mask, labels = batch_ner
+                    
+                    if args.replace_word_translation_ner:
+                        replace_word_translation(args, tokens, tokenizer, matching)
+                    
+                    loss = model_ner(input_ids=tokens, attention_mask=mask, labels=labels)[0]
+                    loss.backward()
+                    optimizer_ner.step()
+                    scheduler_ner.step()
+                    logging_numbers['ner_loss'].append(loss.item())
             
-            
-            
-            # Label smoothing
-            langs = langs.to(args.device).view(-1)
-            langs_smoothed = langs.float().clone()
-            langs_smoothed[langs_smoothed==1.0] = 1.0 - args.smoothing
-            langs_smoothed[langs_smoothed==0.0] = args.smoothing
-            d_labels = langs_smoothed.clone()
-            
-
-            g_labels = 1 - langs_smoothed.clone()
-            
-
-            outputs = model_mlm(inputs, attention_mask=mask, masked_lm_labels=labels)
-            # Get masked-lm loss & last hidden state
-            lm_loss = outputs[0]
-            last_layer = outputs[2][-1]
-
-            if args.n_gpu > 1:
-                lm_loss = lm_loss.mean()
-            g_loss = lm_loss
-            logging_numbers['lm_loss'].append(lm_loss.item())
-            
-
-            # Train D
-            if global_step % args.d_update_steps == 0:
+            else:
+                """ mlm stuff """
+                batch_mlm = batch
+                model_mlm.train()
                 if td:
-                    td.zero_grad()
+                    td.train()
                 if sd:
-                    sd.zero_grad()
-                d_input = last_layer.detach()
-                mask = mask.to(torch.float)
+                    sd.train()
+                optimizer_mlm.zero_grad()
+                tokens, mask, langs = batch_mlm
+                try: 
+                    inputs, labels = _mask_tokens(
+                        tokens, mask, tokenizer, args)
+                except TypeError:
+                    _mask_tokens = mask_tokens_legacy
+                    inputs, labels = _mask_tokens(
+                        tokens, mask, tokenizer, args)
+
+                if args.replace_word_translation:
+                    replace_word_translation(args, inputs, tokenizer, matching)
+
+                if args.do_word_translation_retrieval:
+                    replace_word_translation_labels(args, inputs, labels, tokenizer, matching)
+                tokens = tokens.to(args.device)
+                inputs = inputs.to(args.device)
+                labels = labels.to(args.device)
+                mask = mask.to(args.device)
+                
+                
+                
+                # Label smoothing
+                langs = langs.to(args.device).view(-1)
+                langs_smoothed = langs.float().clone()
+                langs_smoothed[langs_smoothed==1.0] = 1.0 - args.smoothing
+                langs_smoothed[langs_smoothed==0.0] = args.smoothing
+                d_labels = langs_smoothed.clone()
+                
+
+                g_labels = 1 - langs_smoothed.clone()
+                
+
+                outputs = model_mlm(inputs, attention_mask=mask, masked_lm_labels=labels)
+                # Get masked-lm loss & last hidden state
+                lm_loss = outputs[0]
+                last_layer = outputs[2][-1]
+
+                if args.n_gpu > 1:
+                    lm_loss = lm_loss.mean()
+                g_loss = lm_loss
+                logging_numbers['lm_loss'].append(lm_loss.item())
+                
+
+                # Train D
+                if global_step % args.d_update_steps == 0:
+                    if td:
+                        td.zero_grad()
+                    if sd:
+                        sd.zero_grad()
+                    d_input = last_layer.detach()
+                    mask = mask.to(torch.float)
+                    if td:
+                        td_output = td(inputs_embeds=d_input, attention_mask=mask,
+                            labels=None)[0].view(-1)
+                        td_loss = F.binary_cross_entropy_with_logits(td_output, d_labels)       
+                        if args.n_gpu > 1:
+                            td_loss = td_loss.mean()
+                        td_loss.backward()
+                        td_optimizer.step()
+                        scheduler_td.step()
+                        logging_numbers['token_discriminator_d_loss'].append(td_loss.item())
+                        td_preds = (td_output > 0).to(torch.long)
+                        td_acc = int((td_preds == langs).sum()) / (langs.shape[0])
+                        logging_numbers['token_discriminator_acc'].append(td_acc)
+                    if sd:
+                        sd_output = sd(inputs_embeds=d_input, attention_mask=mask,
+                            labels=None)[0].view(-1)
+                        sd_loss = F.binary_cross_entropy_with_logits(sd_output, d_labels)       
+                        if args.n_gpu > 1:
+                            sd_loss = sd_loss.mean()
+                        sd_loss.backward()
+                        sd_optimizer.step()
+                        scheduler_sd.step()
+                        logging_numbers['sentence_discriminator_d_loss'].append(sd_loss.item())
+                        sd_preds = (sd_output > 0).to(torch.long)
+                        sd_acc = int((sd_preds == langs).sum()) / (langs.shape[0])
+                        logging_numbers['sentence_discriminator_acc'].append(sd_acc)
+                # Train G
+
+                # Update generator w/ fake labels
                 if td:
-                    td_output = td(inputs_embeds=d_input, attention_mask=mask,
+                    td_output = td(inputs_embeds=last_layer, attention_mask=mask,
                         labels=None)[0].view(-1)
-                    td_loss = F.binary_cross_entropy_with_logits(td_output, d_labels)       
+                    
+                    td_g_loss = F.binary_cross_entropy_with_logits(td_output, g_labels)
+                
                     if args.n_gpu > 1:
-                        td_loss = td_loss.mean()
-                    td_loss.backward()
-                    td_optimizer.step()
-                    scheduler_td.step()
-                    logging_numbers['token_discriminator_d_loss'].append(td_loss.item())
-                    td_preds = (td_output > 0).to(torch.long)
-                    td_acc = int((td_preds == langs).sum()) / (langs.shape[0])
-                    logging_numbers['token_discriminator_acc'].append(td_acc)
+                        td_g_loss = td_g_loss.mean()
+                    g_loss += td_g_loss * args.td_weight
+                    logging_numbers['token_discriminator_g_loss'].append(td_g_loss.item())
+
+
                 if sd:
-                    sd_output = sd(inputs_embeds=d_input, attention_mask=mask,
+                    sd_output = sd(inputs_embeds=last_layer, attention_mask=mask,
                         labels=None)[0].view(-1)
-                    sd_loss = F.binary_cross_entropy_with_logits(sd_output, d_labels)       
+                    
+                    sd_g_loss = F.binary_cross_entropy_with_logits(sd_output, g_labels)
+                
                     if args.n_gpu > 1:
-                        sd_loss = sd_loss.mean()
-                    sd_loss.backward()
-                    sd_optimizer.step()
-                    scheduler_sd.step()
-                    logging_numbers['sentence_discriminator_d_loss'].append(sd_loss.item())
-                    sd_preds = (sd_output > 0).to(torch.long)
-                    sd_acc = int((sd_preds == langs).sum()) / (langs.shape[0])
-                    logging_numbers['sentence_discriminator_acc'].append(sd_acc)
-            # Train G
+                        sd_g_loss = sd_g_loss.mean()
+                    g_loss += sd_g_loss * args.sd_weight
+                    logging_numbers['sentence_discriminator_g_loss'].append(sd_g_loss.item())
 
-            # Update generator w/ fake labels
-            if td:
-                td_output = td(inputs_embeds=last_layer, attention_mask=mask,
-                    labels=None)[0].view(-1)
-                
-                td_g_loss = F.binary_cross_entropy_with_logits(td_output, g_labels)
-            
-                if args.n_gpu > 1:
-                    td_g_loss = td_g_loss.mean()
-                g_loss += td_g_loss * args.td_weight
-                logging_numbers['token_discriminator_g_loss'].append(td_g_loss.item())
-
-
-            if sd:
-                sd_output = sd(inputs_embeds=last_layer, attention_mask=mask,
-                    labels=None)[0].view(-1)
-                
-                sd_g_loss = F.binary_cross_entropy_with_logits(sd_output, g_labels)
-            
-                if args.n_gpu > 1:
-                    sd_g_loss = sd_g_loss.mean()
-                g_loss += sd_g_loss * args.sd_weight
-                logging_numbers['sentence_discriminator_g_loss'].append(sd_g_loss.item())
-
-            g_loss.backward()
-            optimizer_mlm.step()
-            scheduler_mlm.step()
-            logging_numbers['cumulative_generator_loss'].append(g_loss.item())
+                g_loss.backward()
+                optimizer_mlm.step()
+                scheduler_mlm.step()
+                logging_numbers['cumulative_generator_loss'].append(g_loss.item())
             global_step += 1
-
-
             if args.logging_steps > 0 and global_step % args.logging_steps == 0:
                 # Log metrics
                 # Only evaluate when single GPU otherwise metrics may not average well
@@ -486,15 +479,6 @@ def train(args, data, models, sd, td, tokenizer):
 
                 _rotate_checkpoints(args, checkpoint_prefix)
 
-            if args.max_steps > 0 and global_step > args.max_steps:
-                break
-
-        
-
-        
-        if args.max_steps > 0 and global_step > args.max_steps:
-            train_iterator.close()
-            break
 
     
     tb_writer.close()

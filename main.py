@@ -120,6 +120,8 @@ def main():
     parser.add_argument("--ner_dataset", type=str, choices=["wikiann", "conll"], default="wikiann")
     parser.add_argument("--td_layers", type=int, default=6)
     parser.add_argument("--td_attention_heads", type=int, default=6)
+    parser.add_argument("--mlm_freq", type=int, default=1)
+    parser.add_argument("--ner_freq", type=int, default=1)
     args = parser.parse_args()
 
     tag_init(args.ner_dataset)
