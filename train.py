@@ -278,6 +278,7 @@ def train(args, data, models, sd, td, tokenizer):
                 args.gradient_accumulation_steps)
 
     global_step = 0
+    mlm_step = 0
     tr_loss = 0.0
 
     
@@ -375,7 +376,7 @@ def train(args, data, models, sd, td, tokenizer):
                 
 
                 # Train D
-                if global_step % args.d_update_steps == 0:
+                if mlm_step % args.d_update_steps == 0:
                     if td:
                         td.zero_grad()
                     if sd:
@@ -438,6 +439,7 @@ def train(args, data, models, sd, td, tokenizer):
                 optimizer_mlm.step()
                 scheduler_mlm.step()
                 logging_numbers['cumulative_generator_loss'].append(g_loss.item())
+                mlm_step += 1
             global_step += 1
             if args.logging_steps > 0 and global_step % args.logging_steps == 0:
                 # Log metrics
