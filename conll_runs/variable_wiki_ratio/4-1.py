@@ -14,14 +14,14 @@ TGT={}
 set -e
 set -x
 
-OUTDIR=/scratch/mihalcea_root/mihalcea1/yimingz/data/training_output/adv-mbert/conll_experiments/variable_ratio
+OUTDIR=/scratch/mihalcea_root/mihalcea1/yimingz/data/training_output/adv-mbert/conll_experiments/variable_ratio/4-1
 mkdir -p $OUTDIR
 
-cat /scratch/mihalcea_root/mihalcea1/yimingz/WIKI_DATA/en/en.all | head -n14040 \
- > /scratch/mihalcea_root/mihalcea1/yimingz/WIKI_DATA/en/en.14040
+cat /scratch/mihalcea_root/mihalcea1/yimingz/WIKI_DATA/en/en.all | head -n28080 \
+ > /scratch/mihalcea_root/mihalcea1/yimingz/WIKI_DATA/en/en.28080
 
-cat /scratch/mihalcea_root/mihalcea1/yimingz/WIKI_DATA/$TGT/$TGT.all | head -n14040 \
- > /scratch/mihalcea_root/mihalcea1/yimingz/WIKI_DATA/$TGT/$TGT.14040
+cat /scratch/mihalcea_root/mihalcea1/yimingz/WIKI_DATA/$TGT/$TGT.all | head -n28080 \
+ > /scratch/mihalcea_root/mihalcea1/yimingz/WIKI_DATA/$TGT/$TGT.28080
 
 python3 /scratch/mihalcea_root/mihalcea1/yimingz/src/Adv-mBERT/main.py \
 --per_gpu_train_batch_size 8 \
@@ -36,7 +36,7 @@ python3 /scratch/mihalcea_root/mihalcea1/yimingz/src/Adv-mBERT/main.py \
 --quick_evaluate_ratio 0.1 \
 --cache_dir /scratch/mihalcea_root/mihalcea1/yimingz/data/cache_dir \
 --output_dir $OUTDIR \
---train_data_file /scratch/mihalcea_root/mihalcea1/yimingz/WIKI_DATA/en/en.14040 /scratch/mihalcea_root/mihalcea1/yimingz/WIKI_DATA/$TGT/$TGT.14040 \
+--train_data_file /scratch/mihalcea_root/mihalcea1/yimingz/WIKI_DATA/en/en.28080 /scratch/mihalcea_root/mihalcea1/yimingz/WIKI_DATA/$TGT/$TGT.28080 \
 --lexicon_path /scratch/mihalcea_root/mihalcea1/yimingz/data/lexicon/en-$TGT.txt \
 --ner_dir /scratch/mihalcea_root/mihalcea1/yimingz/src/ZLT/data \
 --ner_dataset conll \
