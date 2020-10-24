@@ -9,6 +9,7 @@ import pickle
 import random
 import re
 import shutil
+import itertools
 
 import numpy as np
 import torch
@@ -186,6 +187,33 @@ def _rotate_checkpoints(args, checkpoint_prefix, use_mtime=False):
         logger.info("Deleting older checkpoint [{}] due to args.save_total_limit".format(checkpoint))
         shutil.rmtree(checkpoint)
 
+def MLM_LOADER(loader):
+    for batch in loader:
+        yield 'MLM', batch
+
+def NER_LOADER(loader):
+    for batch in loader:
+        yield 'NER', batch
+
+def roundrobin(iterables):
+    "roundrobin('ABC', 'D', 'EF') --> A D E B F C"
+    # Recipe credited to George Sakkis
+    pending = len(iterables)
+    nexts = itertools.cycle(iter(it).__next__ for it in iterables)
+    while pending:
+        try:
+            for next in nexts:
+                yield next()
+        except StopIteration:
+            pending -= 1
+            nexts = itertools.cycle(itertools.islice(nexts, pending))
+
+def variable_mlm_ner_ratio(mlm_loader, ner_loader, mlm_cycles, ner_cycles):
+    mlm_loader = MLM_LOADER(mlm_loader)
+    ner_loader = NER_LOADER(ner_loader)
+    iters = [mlm_loader] * mlm_cycles + [ner_loader] * ner_cycles
+    yield from roundrobin(iters)
+
 
 def train(args, data, models, sd, td, tokenizer):
     model_mlm, model_ner = models
@@ -196,8 +224,8 @@ def train(args, data, models, sd, td, tokenizer):
 
     dataset_size = min(len(train_dataset_mlm), len(train_dataset_ner))
 
-    train_dataset_mlm = Subset(train_dataset_mlm, random.sample(range(len(train_dataset_mlm)), dataset_size))
-    train_dataset_ner = Subset(train_dataset_ner, random.sample(range(len(train_dataset_ner)), dataset_size))
+    # train_dataset_mlm = Subset(train_dataset_mlm, random.sample(range(len(train_dataset_mlm)), dataset_size))
+    # train_dataset_ner = Subset(train_dataset_ner, random.sample(range(len(train_dataset_ner)), dataset_size))
 
     train_dataloader_mlm = DataLoader(
         train_dataset_mlm, shuffle=True, batch_size=args.per_gpu_train_batch_size)
